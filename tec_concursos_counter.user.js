@@ -396,7 +396,6 @@
             if (questoesProcessadas[idQuestao]) {
                 const tipoAnterior = questoesProcessadas[idQuestao];
                 console.log(`Questão já processada como "${tipoAnterior}". Ignorando.`);
-                mostrarNotificacao(`Esta questão já foi registrada como ${tipoAnterior.toUpperCase()}`, true);
                 verificandoResultado = false;
                 return;
             }
@@ -549,7 +548,7 @@
         if (questoesProcessadas[idQuestao]) {
             const tipoAnterior = questoesProcessadas[idQuestao];
             console.log(`Questão já processada como "${tipoAnterior}". Ignorando novamente.`);
-            mostrarNotificacao(`Questão #${idQuestao} já contabilizada como ${tipoAnterior.toUpperCase()}`, true);
+            verificandoResultado = false;
             return;
         }
         
