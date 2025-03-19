@@ -17,8 +17,8 @@
     console.log('TEC Concursos Counter v0.8 iniciado');
     
     // Configuração
-    const API_URL = 'http://localhost:5000/api/increment';
-    const UNDO_API_URL = 'http://localhost:5000/api/undo';
+    const API_URL = 'https://acssjr.pythonanywhere.com/api/increment';
+    const UNDO_API_URL = 'https://acssjr.pythonanywhere.com/api/undo';
     
     // Mapa para armazenar questões já processadas
     const questoesProcessadas = carregarQuestoesProcessadas();
@@ -708,7 +708,7 @@
         console.log('Carregando contadores da API...');
         
         // Enviar para o servidor local
-        const statusUrl = 'http://localhost:5000/api/status';
+        const statusUrl = 'https://acssjr.pythonanywhere.com/api/status';
         console.log(`Enviando requisição para ${statusUrl}`);
         GM_xmlhttpRequest({
             method: 'GET',
