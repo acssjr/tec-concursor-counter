@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contador TecConcursos | Rastreador de Progresso</title>
+    <!-- Importação de fontes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #8A2BE2;
+            --primary-dark: #6A1B9A;
+            --secondary: #3A3053;
+            --success: #00C853;
+            --danger: #F44336;
+            --warning: #FFB300;
+            --dark: #1A1625;
+            --darker: #13111C;
+            --light-text: #E4E2F0;
+            --gray: #9E9CB5;
+            --card-bg: #242235;
+            --border-radius: 12px;
+            --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            background-color: var(--darker);
+            color: var(--light-text);
+            min-height: 100vh;
+            padding: 0;
+        }
+        
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .app-header {
+            background-color: var(--dark);
+            color: var(--light-text);
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            box-shadow: var(--box-shadow);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--light-text);
+        }
+        
+        .logo i {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+        
+        .section {
+            background-color: var(--dark);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .section-title {
+            color: var(--light-text);
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .section-title i {
+            color: var(--primary);
+        }
+        
+        .counter-display {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .counter-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            text-align: center;
+            transition: var(--transition);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        
+        .counter-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .counter-value {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+        
+        .counter-label {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--gray);
+            font-weight: 600;
+        }
+        
+        .value-acertos { color: var(--success); }
+        .value-erros { color: var(--danger); }
+        .value-total { color: var(--primary); }
+        
+        .actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            justify-content: center;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #D32F2F;
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+        
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #00B248;
+            box-shadow: 0 5px 15px rgba(0, 200, 83, 0.4);
+        }
+        
+        .form-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.95rem;
+            color: var(--light-text);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--border-radius);
+            font-family: inherit;
+            font-size: 1rem;
+            transition: var(--transition);
+            background-color: var(--card-bg);
+            color: var(--light-text);
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(138, 43, 226, 0.2);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        
+        .stats-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            padding: 1.4rem;
+            text-align: center;
+            transition: var(--transition);
+            border-left: 4px solid var(--primary);
+        }
+        
+        .stats-card-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--light-text);
+        }
+        
+        .stats-card-label {
+            font-size: 0.85rem;
+            color: var(--gray);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.3rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-success {
+            background-color: rgba(0, 200, 83, 0.15);
+            color: var(--success);
+        }
+        
+        .badge-danger {
+            background-color: rgba(244, 67, 54, 0.15);
+            color: var(--danger);
+        }
+        
+        .badge-warning {
+            background-color: rgba(255, 179, 0, 0.15);
+            color: var(--warning);
+        }
+        
+        .badge-primary {
+            background-color: rgba(138, 43, 226, 0.15);
+            color: var(--primary);
+        }
+        
+        .delete-link {
+            color: var(--danger);
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .delete-link:hover {
+            text-decoration: underline;
+            color: #FF5252;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem 0;
+            color: var(--gray);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+            color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .empty-state-message {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .empty-message {
+            text-align: center;
+            padding: 20px;
+            color: var(--gray);
+            font-style: italic;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius);
+            margin: 10px 0;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-online {
+            background-color: rgba(0, 200, 83, 0.15);
+            color: var(--success);
+        }
+        
+        .status-offline {
+            background-color: rgba(244, 67, 54, 0.15);
+            color: var(--danger);
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin-top: 1rem;
+        }
+        
+        .history-item {
+            display: flex;
+            padding: 0.85rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 0.8rem;
+            background-color: var(--card-bg);
+            border-left: 3px solid;
+            align-items: center;
+        }
+        
+        .history-item.acerto {
+            border-left-color: var(--success);
+        }
+        
+        .history-item.erro {
+            border-left-color: var(--danger);
+        }
+        
+        .history-icon {
+            margin-right: 0.75rem;
+            font-size: 1.25rem;
+        }
+        
+        .history-info {
+            flex: 1;
+        }
+        
+        .history-question {
+            font-weight: 500;
+            color: var(--light-text);
+        }
+        
+        .history-time {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 1.5rem;
+            border-radius: var(--border-radius);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            color: var(--light-text);
+        }
+        
+        th, td {
+            padding: 0.85rem 1rem;
+            text-align: left;
+        }
+        
+        th {
+            background-color: rgba(255, 255, 255, 0.05);
+            font-weight: 600;
+            color: var(--gray);
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        
+        tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        tr:last-child {
+            border-bottom: none;
+        }
+        
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+        
+        footer {
+            text-align: center;
+            padding: 1.5rem 0;
+            margin-top: 3rem;
+            color: var(--gray);
+            font-size: 0.85rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        /* Estilo para o histórico de operações */
+        .history-item {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 0;
+        }
+        
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        
+        .history-timestamp {
+            font-size: 12px;
+            color: var(--gray);
+        }
+        
+        .history-badge {
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 12px;
+        }
+        
+        .history-badge.success {
+            background-color: rgba(0, 200, 83, 0.2);
+            color: var(--success);
+        }
+        
+        .history-badge.danger {
+            background-color: rgba(244, 67, 54, 0.2);
+            color: var(--danger);
+        }
+        
+        .history-question {
+            font-weight: 500;
+            color: var(--light-text);
+        }
+        
+        /* Estilos para os tabs de estatísticas */
+        .tabs {
+            margin-top: 20px;
+        }
+        
+        .tab-header {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            color: var(--gray);
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            position: relative;
+            transition: var(--transition);
+        }
+        
+        .tab-button:hover {
+            color: var(--light-text);
+        }
+        
+        .tab-button.active {
+            color: var(--primary);
+        }
+        
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: var(--primary);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .loading-indicator {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--gray);
+        }
+        
+        @media (max-width: 768px) {
+            .counter-display {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tab-button {
+                padding: 10px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="app-container header-content">
+            <div class="logo">
+                <i class="fas fa-check-circle"></i>
+                Contador TecConcursos
+            </div>
+            <div class="status-badge status-online" id="api-status">
+                <i class="fas fa-circle"></i> 
+                API Conectada
+            </div>
+        </div>
+    </header>
+    
+    <main class="app-container">
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-tachometer-alt"></i>
+                Dashboard
+            </h2>
+            
+            <div class="counter-display">
+                <div class="counter-card">
+                    <div class="counter-label">Acertos</div>
+                    <div class="counter-value value-acertos" id="count-acertos">0</div>
+                    <div class="counter-label">questões</div>
+                </div>
+                
+                <div class="counter-card">
+                    <div class="counter-label">Erros</div>
+                    <div class="counter-value value-erros" id="count-erros">0</div>
+                    <div class="counter-label">questões</div>
+                </div>
+                
+                <div class="counter-card">
+                    <div class="counter-label">Total</div>
+                    <div class="counter-value value-total" id="count-total">0</div>
+                    <div class="counter-label">questões</div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button id="btn-reset" class="btn btn-danger" onclick="resetContadores()">
+                    <i class="fas fa-undo"></i> Zerar Contadores
+                </button>
+            </div>
+        </section>
+        
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-history"></i>
+                Histórico Recente
+            </h2>
+            
+            <div class="history-list">
+                {% if historico %}
+                    {% for item in historico %}
+                        <div class="history-item {{ item.tipo }}">
+                            <div class="history-icon">
+                                {% if item.tipo == 'acerto' %}
+                                    <i class="fas fa-check-circle" style="color: var(--success);"></i>
+                                {% else %}
+                                    <i class="fas fa-times-circle" style="color: var(--danger);"></i>
+                                {% endif %}
+                            </div>
+                            <div class="history-info">
+                                <div class="history-question">Questão #{{ item.questao.id }}</div>
+                                <div class="history-time">{{ item.timestamp }}</div>
+                            </div>
+                            <div class="history-badge">
+                                <span class="badge {% if item.tipo == 'acerto' %}badge-success{% else %}badge-danger{% endif %}">
+                                    {{ item.tipo|capitalize }}
+                                </span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-message">Nenhuma atividade recente</div>
+                {% endif %}
+            </div>
+        </section>
+        
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-save"></i>
+                Salvar Sessão de Estudo
+            </h2>
+            
+            <form action="/add" method="post" id="session-form">
+                <div class="form-container">
+                    <div class="form-group">
+                        <label for="materia" class="form-label">Matéria:</label>
+                        <input type="text" id="materia" name="materia" class="form-input" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="caderno" class="form-label">Nome do Caderno (opcional):</label>
+                        <input type="text" id="caderno" name="caderno" class="form-input">
+                    </div>
+                </div>
+                
+                <input type="hidden" id="acertos" name="acertos" value="0">
+                <input type="hidden" id="erros" name="erros" value="0">
+                
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Salvar Esta Sessão
+                    </button>
+                </div>
+            </form>
+        </section>
+        
+        {% if stats_por_materia %}
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-chart-bar"></i>
+                Estatísticas por Matéria
+            </h2>
+            
+            <div class="stats-grid">
+                {% for materia, stats in stats_por_materia.items() %}
+                    {% if materia %}
+                        <div class="stats-card">
+                            <div class="stats-card-value">{{ stats.taxa_acerto }}%</div>
+                            <div class="stats-card-label">{{ materia }}</div>
+                            <div style="margin-top: 10px;">
+                                <div class="badge badge-success">{{ stats.acertos }} acertos</div>
+                                <div class="badge badge-danger">{{ stats.erros }} erros</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+        
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-analytics"></i>
+                Estatísticas Avançadas
+            </h2>
+            
+            <div class="tabs">
+                <div class="tab-header">
+                    <button class="tab-button active" data-tab="assunto">Por Assunto</button>
+                    <button class="tab-button" data-tab="banca">Por Banca</button>
+                    <button class="tab-button" data-tab="ano">Por Ano</button>
+                </div>
+                
+                <div class="tab-content active" id="tab-assunto">
+                    <div class="loading-indicator">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando estatísticas...
+                    </div>
+                    <div class="stats-grid" id="stats-assunto"></div>
+                </div>
+                
+                <div class="tab-content" id="tab-banca">
+                    <div class="loading-indicator">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando estatísticas...
+                    </div>
+                    <div class="stats-grid" id="stats-banca"></div>
+                </div>
+                
+                <div class="tab-content" id="tab-ano">
+                    <div class="loading-indicator">
+                        <i class="fas fa-spinner fa-spin"></i> Carregando estatísticas...
+                    </div>
+                    <div class="stats-grid" id="stats-ano"></div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="section">
+            <h2 class="section-title">
+                <i class="fas fa-list"></i>
+                Histórico de Sessões
+            </h2>
+            
+            {% if sessions %}
+                <!-- Estatísticas Gerais -->
+                <div class="stats-grid">
+                    {% set total_acertos = sessions|map(attribute='acertos')|sum %}
+                    {% set total_erros = sessions|map(attribute='erros')|sum %}
+                    {% set total_questoes = total_acertos + total_erros %}
+                    {% set taxa_acerto = (total_acertos / total_questoes * 100)|round(1) if total_questoes > 0 else 0 %}
+                    
+                    <div class="stats-card">
+                        <div class="stats-card-value">{{ total_questoes }}</div>
+                        <div class="stats-card-label">Questões Totais</div>
+                    </div>
+                    
+                    <div class="stats-card">
+                        <div class="stats-card-value value-acertos">{{ total_acertos }}</div>
+                        <div class="stats-card-label">Acertos</div>
+                    </div>
+                    
+                    <div class="stats-card">
+                        <div class="stats-card-value value-erros">{{ total_erros }}</div>
+                        <div class="stats-card-label">Erros</div>
+                    </div>
+                    
+                    <div class="stats-card">
+                        <div class="stats-card-value">{{ taxa_acerto }}%</div>
+                        <div class="stats-card-label">Taxa de Acerto</div>
+                    </div>
+                </div>
+                
+                <!-- Tabela de Sessões -->
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Matéria</th>
+                                <th>Caderno</th>
+                                <th>Acertos</th>
+                                <th>Erros</th>
+                                <th>Total</th>
+                                <th>Taxa</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in sessions %}
+                            <tr>
+                                <td>{{ session.date }}</td>
+                                <td>{{ session.materia }}</td>
+                                <td>{{ session.caderno or '-' }}</td>
+                                <td>{{ session.acertos }}</td>
+                                <td>{{ session.erros }}</td>
+                                <td>{{ session.total }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if session.taxa_acerto >= 70 %}badge-success
+                                        {% elif session.taxa_acerto >= 50 %}badge-warning
+                                        {% else %}badge-danger{% endif %}">
+                                        {{ session.taxa_acerto }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('delete_session', index=loop.index0) }}" class="delete-link" 
+                                       onclick="return confirm('Tem certeza que deseja excluir esta sessão?')">
+                                       <i class="fas fa-trash"></i> Excluir
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <div class="empty-state-message">Nenhuma sessão registrada ainda.</div>
+                    <button class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Adicione sua primeira sessão
+                    </button>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+    
+    <footer>
+        <div class="app-container">
+            Contador TecConcursos &copy; {{ ano_atual }} - Desenvolvido para auxiliar nos seus estudos
+        </div>
+    </footer>
+    
+    <script>
+        // Variáveis globais para contagem
+        var acertos = 0;
+        var erros = 0;
+        var apiFailCount = 0;
+        var apiCheckInterval = null;
+        
+        // Função para atualizar contadores na interface
+        function updateContadores() {
+            document.getElementById('count-acertos').textContent = acertos;
+            document.getElementById('count-erros').textContent = erros;
+            document.getElementById('count-total').textContent = acertos + erros;
+            
+            // Atualizar valores do formulário
+            document.getElementById('acertos').value = acertos;
+            document.getElementById('erros').value = erros;
+        }
+        
+        // Função para zerar contadores
+        function resetContadores() {
+            if (!confirm('Tem certeza que deseja zerar os contadores?')) {
+                return;
+            }
+            
+            acertos = 0;
+            erros = 0;
+            updateContadores();
+            
+            // Também reiniciar contadores na API
+            fetch('/api/reset', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Contadores da API zerados:', data);
+                showToast('Contadores zerados com sucesso', 'success');
+            })
+            .catch(error => {
+                console.error('Erro ao zerar contadores da API:', error);
+                showToast('Erro ao zerar contadores', 'danger');
+            });
+        }
+        
+        // Função para verificar status da API
+        function checkApiStatus() {
+            fetch('/api/status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Atualizar contadores locais com os valores da API
+                    acertos = data.acertos;
+                    erros = data.erros;
+                    updateContadores();
+                    
+                    // Atualizar histórico recente
+                    if (data.historico && Array.isArray(data.historico)) {
+                        const historyList = document.querySelector('.history-list');
+                        if (historyList) {
+                            // Limpar histórico existente
+                            historyList.innerHTML = '';
+                            
+                            // Reverter array para mostrar mais recentes primeiro
+                            const historico = [...data.historico].reverse();
+                            
+                            if (historico.length === 0) {
+                                historyList.innerHTML = '<div class="empty-message">Nenhuma operação registrada</div>';
+                            } else {
+                                // Adicionar cada item ao histórico
+                                historico.forEach(item => {
+                                    const historyItem = document.createElement('div');
+                                    historyItem.className = `history-item ${item.tipo}`;
+                                    
+                                    historyItem.innerHTML = `
+                                        <div class="history-icon">
+                                            <i class="fas ${item.tipo === 'acerto' ? 'fa-check-circle' : 'fa-times-circle'}" 
+                                               style="color: var(${item.tipo === 'acerto' ? '--success' : '--danger'});"></i>
+                                        </div>
+                                        <div class="history-info">
+                                            <div class="history-question">Questão #${item.questao ? item.questao.id : 'desconhecida'}</div>
+                                            <div class="history-time">${item.timestamp}</div>
+                                        </div>
+                                        <div class="history-badge">
+                                            <span class="badge ${item.tipo === 'acerto' ? 'badge-success' : 'badge-danger'}">
+                                                ${item.tipo.charAt(0).toUpperCase() + item.tipo.slice(1)}
+                                            </span>
+                                        </div>
+                                    `;
+                                    
+                                    historyList.appendChild(historyItem);
+                                });
+                            }
+                        }
+                    }
+                    
+                    // Atualizar indicador de status
+                    const apiStatus = document.getElementById('api-status');
+                    if (apiStatus) {
+                        apiStatus.className = 'status-badge badge-success';
+                        apiStatus.innerHTML = `<i class="fas fa-check-circle"></i> API Online`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao verificar API:', error);
+                    
+                    const apiStatus = document.getElementById('api-status');
+                    if (apiStatus) {
+                        apiStatus.className = 'status-badge badge-danger';
+                        apiStatus.innerHTML = `<i class="fas fa-times-circle"></i> API Offline`;
+                    }
+                    
+                    // Se falhar por 5 verificações consecutivas, interromper a verificação
+                    apiFailCount++;
+                    if (apiFailCount >= 5) {
+                        clearInterval(apiCheckInterval);
+                        console.warn('Verificações da API interrompidas após falhas consecutivas');
+                        
+                        // Adicionar botão para reiniciar verificações
+                        const footerStatus = document.querySelector('.footer-status');
+                        if (footerStatus && !document.getElementById('retry-api')) {
+                            const retryButton = document.createElement('button');
+                            retryButton.id = 'retry-api';
+                            retryButton.className = 'btn btn-sm btn-outline-secondary';
+                            retryButton.innerHTML = '<i class="fas fa-sync"></i> Reconectar';
+                            retryButton.onclick = function() {
+                                apiFailCount = 0;
+                                setupApiPolling();
+                                this.remove();
+                            };
+                            footerStatus.appendChild(retryButton);
+                        }
+                    }
+                });
+        }
+        
+        // Configurar polling para atualizar contadores a partir da API
+        function setupApiPolling() {
+            // Verificar a cada 2 segundos
+            apiCheckInterval = setInterval(checkApiStatus, 2000);
+        }
+        
+        // Função para mostrar toast de notificação
+        function showToast(message, type = 'primary') {
+            // Criar elemento toast
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : 
+                                   type === 'danger' ? 'fa-exclamation-circle' : 
+                                   'fa-info-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            // Estilos
+            toast.style.position = 'fixed';
+            toast.style.bottom = '20px';
+            toast.style.right = '20px';
+            toast.style.backgroundColor = type === 'success' ? '#2ecc71' : 
+                                         type === 'danger' ? '#e74c3c' : '#3498db';
+            toast.style.color = 'white';
+            toast.style.padding = '1rem';
+            toast.style.borderRadius = '8px';
+            toast.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+            toast.style.zIndex = '9999';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(20px)';
+            toast.style.transition = 'all 0.3s ease';
+            
+            // Adicionar à página
+            document.body.appendChild(toast);
+            
+            // Animar entrada
+            setTimeout(() => {
+                toast.style.opacity = '1';
+                toast.style.transform = 'translateY(0)';
+            }, 10);
+            
+            // Remover após alguns segundos
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                setTimeout(() => document.body.removeChild(toast), 300);
+            }, 3000);
+        }
+        
+        // Adicionar event listeners quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Verificar status da API e iniciar polling
+            checkApiStatus();
+            setupApiPolling();
+            
+            // Inicializar listeners dos botões
+            document.getElementById('btn-reset').addEventListener('click', resetContadores);
+            
+            // Setup dos tabs de estatísticas
+            setupTabs();
+            
+            // Carregar estatísticas avançadas
+            carregarEstatisticasAvancadas();
+        });
+        
+        // Função para manipular os tabs
+        function setupTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remover a classe 'active' de todos os botões e conteúdos
+                    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                    
+                    // Adicionar a classe 'active' ao botão clicado
+                    button.classList.add('active');
+                    
+                    // Mostrar o conteúdo correspondente
+                    const tabId = button.getAttribute('data-tab');
+                    document.getElementById('tab-' + tabId).classList.add('active');
+                });
+            });
+        }
+        
+        // Função para carregar estatísticas avançadas
+        function carregarEstatisticasAvancadas() {
+            fetch('/api/stats')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(dados => {
+                    // Limpar mensagens de erro
+                    document.querySelectorAll('.stats-error').forEach(el => el.remove());
+                    
+                    // Preencher cada tipo de estatística
+                    preencherEstatisticas('questoes-por-dia', dados.questoes_por_dia);
+                    preencherEstatisticas('taxa-acerto-por-dia', dados.taxa_acerto_por_dia);
+                    preencherEstatisticas('materias-mais-estudadas', dados.materias_mais_estudadas);
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar estatísticas:', error);
+                    
+                    // Adicionar mensagem de erro para cada container vazio
+                    document.querySelectorAll('.stats-container').forEach(container => {
+                        if (!container.querySelector('.stats-item, .stats-error')) {
+                            const errorMsg = document.createElement('div');
+                            errorMsg.className = 'stats-error';
+                            errorMsg.innerHTML = `
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <p>Não foi possível carregar as estatísticas.<br>
+                                Tente novamente mais tarde ou salve algumas sessões primeiro.</p>
+                            `;
+                            container.appendChild(errorMsg);
+                        }
+                    });
+                });
+        }
+        
+        // Função para preencher cada tipo de estatística
+        function preencherEstatisticas(containerId, dados) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            // Remover indicador de carregamento
+            const loadingIndicator = container.parentElement.querySelector('.loading-indicator');
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
+            
+            // Se não houver dados, mostrar mensagem
+            if (Object.keys(dados).length === 0) {
+                container.innerHTML = '<div class="empty-state">Nenhum dado disponível</div>';
+                return;
+            }
+            
+            // Ordenar os dados pela taxa de acerto (do maior para o menor)
+            const itens = Object.entries(dados).sort((a, b) => b[1].taxa_acerto - a[1].taxa_acerto);
+            
+            // Criar cartões para cada item
+            itens.forEach(([chave, stats]) => {
+                const card = document.createElement('div');
+                card.className = 'stats-card';
+                
+                card.innerHTML = `
+                    <div class="stats-card-header">
+                        <h3>${chave || 'Não especificado'}</h3>
+                        <span class="stats-card-badge">${stats.taxa_acerto}%</span>
+                    </div>
+                    <div class="stats-meter">
+                        <div class="meter-bar">
+                            <div class="meter-fill" style="width: ${stats.taxa_acerto}%;"></div>
+                        </div>
+                    </div>
+                    <div class="stats-details">
+                        <div class="stats-item">
+                            <span class="stats-label">Acertos</span>
+                            <span class="stats-value success">${stats.acertos}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Erros</span>
+                            <span class="stats-value danger">${stats.erros}</span>
+                        </div>
+                        <div class="stats-item">
+                            <span class="stats-label">Total</span>
+                            <span class="stats-value">${stats.total}</span>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
