@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TEC Concursos - Contador Simples
 // @namespace    http://acssjr.pythonanywhere.com/
-// @version      0.9.6
+// @version      0.9.7
 // @description  Versão simples do contador para o TEC Concursos com detecção automática de resultados
 // @author       You
 // @match        *://*.tecconcursos.com.br/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('TEC Concursos Counter v0.9.6 iniciado');
+    console.log('TEC Concursos Counter v0.9.7 iniciado');
     
     // Configurações da API
     const API_URL = 'https://acssjr.pythonanywhere.com/api/increment';
@@ -610,8 +610,146 @@
             }
         }
         
+        // Tentar obter a dificuldade da questão
+        let dificuldade = 'não disponível';
+        try {
+            // Método 1: Procurar pela dificuldade na página (pode estar em qualquer elemento com esse texto específico)
+            const dificuldadeTextElements = Array.from(document.querySelectorAll('span, div, p, label, td, th'))
+                .filter(el => el.textContent && 
+                    (el.textContent.includes('Dificuldade:') || 
+                     el.textContent.includes('Difícil') || 
+                     el.textContent.includes('Fácil') || 
+                     el.textContent.includes('Média') || 
+                     el.textContent.includes('Muito difícil')));
+            
+            console.log('Elementos com possível dificuldade encontrados:', dificuldadeTextElements.length);
+            
+            if (dificuldadeTextElements.length > 0) {
+                for (const elem of dificuldadeTextElements) {
+                    // Verificar se o texto contém alguma classificação de dificuldade
+                    const texto = elem.textContent.trim();
+                    console.log('Texto encontrado:', texto);
+                    
+                    if (texto.includes('Fácil')) {
+                        dificuldade = 'Fácil';
+                        console.log('Dificuldade encontrada:', dificuldade);
+                        break;
+                    } else if (texto.includes('Média')) {
+                        dificuldade = 'Média';
+                        console.log('Dificuldade encontrada:', dificuldade);
+                        break;
+                    } else if (texto.includes('Muito difícil')) {
+                        dificuldade = 'Muito difícil';
+                        console.log('Dificuldade encontrada:', dificuldade);
+                        break;
+                    } else if (texto.includes('Difícil')) {
+                        dificuldade = 'Difícil';
+                        console.log('Dificuldade encontrada:', dificuldade);
+                        break;
+                    }
+                }
+            }
+            
+            // Método 2: Verificar na aba de estatísticas, que pode estar oculta
+            if (dificuldade === 'não disponível') {
+                console.log('Tentando encontrar dificuldade na aba de estatísticas...');
+                
+                // Tenta clicar na aba de estatísticas para ver se consegue obter a informação
+                const estatisticasTab = Array.from(document.querySelectorAll('a, button, div'))
+                    .find(el => el.textContent && el.textContent.trim().includes('Estatísticas'));
+                
+                if (estatisticasTab) {
+                    console.log('Aba de estatísticas encontrada:', estatisticasTab);
+                    
+                    // Verifica se já estamos na aba de estatísticas ou precisamos clicar nela
+                    const isEstatisticasActive = estatisticasTab.classList.contains('active') || 
+                                                estatisticasTab.getAttribute('aria-selected') === 'true';
+                    
+                    // Se não estiver ativa, guarda a aba atual para voltar depois
+                    let tabAtual = null;
+                    if (!isEstatisticasActive) {
+                        // Encontra a aba atual
+                        tabAtual = document.querySelector('.active[role="tab"], [aria-selected="true"][role="tab"]');
+                        console.log('Guardando aba atual:', tabAtual);
+                        
+                        // Clica na aba de estatísticas
+                        console.log('Clicando na aba de estatísticas...');
+                        estatisticasTab.click();
+                        
+                        // Pequena pausa para a aba carregar
+                        setTimeout(() => {
+                            // Agora busca a dificuldade no conteúdo da aba de estatísticas
+                            const dificuldadeElements = Array.from(document.querySelectorAll('span, div, p, label, td, th'))
+                                .filter(el => el.textContent && 
+                                    (el.textContent.includes('Dificuldade:') || 
+                                     el.textContent.includes('Difícil') || 
+                                     el.textContent.includes('Fácil') || 
+                                     el.textContent.includes('Média') || 
+                                     el.textContent.includes('Muito difícil')));
+                            
+                            console.log('Elementos com possível dificuldade na aba de estatísticas:', dificuldadeElements.length);
+                            
+                            for (const elem of dificuldadeElements) {
+                                const texto = elem.textContent.trim();
+                                console.log('Texto na aba de estatísticas:', texto);
+                                
+                                if (texto.includes('Fácil')) {
+                                    dificuldade = 'Fácil';
+                                    break;
+                                } else if (texto.includes('Média')) {
+                                    dificuldade = 'Média';
+                                    break;
+                                } else if (texto.includes('Muito difícil')) {
+                                    dificuldade = 'Muito difícil';
+                                    break;
+                                } else if (texto.includes('Difícil')) {
+                                    dificuldade = 'Difícil';
+                                    break;
+                                }
+                            }
+                            
+                            console.log('Dificuldade encontrada na aba de estatísticas:', dificuldade);
+                            
+                            // Voltar para a aba original
+                            if (tabAtual) {
+                                console.log('Voltando para a aba original...');
+                                tabAtual.click();
+                            }
+                        }, 300);
+                    }
+                }
+            }
+            
+            // Método 3: Se não encontrou pelos métodos anteriores, buscar em classes específicas
+            if (dificuldade === 'não disponível') {
+                console.log('Buscando dificuldade em classes específicas...');
+                // Tentar encontrar elementos com classes que possam indicar dificuldade
+                const estatisticasElements = document.querySelectorAll('.estatisticas, .statistics, .difficulty, .dificuldade');
+                
+                estatisticasElements.forEach(elem => {
+                    const texto = elem.textContent;
+                    console.log('Conteúdo do elemento de estatísticas:', texto);
+                    
+                    if (texto.includes('Dificuldade: Fácil') || texto.includes('Fácil')) {
+                        dificuldade = 'Fácil';
+                    } else if (texto.includes('Dificuldade: Média') || texto.includes('Média')) {
+                        dificuldade = 'Média';
+                    } else if (texto.includes('Dificuldade: Difícil') || texto.includes('Difícil')) {
+                        dificuldade = 'Difícil';
+                    } else if (texto.includes('Dificuldade: Muito difícil') || texto.includes('Muito difícil')) {
+                        dificuldade = 'Muito difícil';
+                    }
+                });
+            }
+            
+            console.log(`Dificuldade final encontrada: ${dificuldade}`);
+        } catch (error) {
+            console.error('Erro ao buscar dificuldade:', error);
+        }
+        
         return {
             id: id || 'desconhecido',
+            dificuldade: dificuldade,
             url: window.location.href
         };
     }
