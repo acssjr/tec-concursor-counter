@@ -391,6 +391,14 @@
             color: var(--gray);
         }
         
+        .history-dificuldade {
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 1px 5px;
+            border-radius: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
         .table-container {
             overflow-x: auto;
             margin-top: 1.5rem;
@@ -619,7 +627,12 @@
                             </div>
                             <div class="history-info">
                                 <div class="history-question">Questão #{{ item.questao.id }}</div>
-                                <div class="history-time">{{ item.timestamp }}</div>
+                                <div class="history-time">
+                                    {{ item.timestamp }}
+                                    {% if item.questao.dificuldade and item.questao.dificuldade != 'não disponível' %}
+                                        • <span class="history-dificuldade">{{ item.questao.dificuldade }}</span>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="history-badge">
                                 <span class="badge {% if item.tipo == 'acerto' %}badge-success{% else %}badge-danger{% endif %}">
