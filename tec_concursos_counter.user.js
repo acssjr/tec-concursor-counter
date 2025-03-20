@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         TEC Concursos - Contador Simples
-// @namespace    http://localhost:5000/
+// @namespace    http://acssjr.pythonanywhere.com/
 // @version      0.9.6
 // @description  Versão simples do contador para o TEC Concursos com detecção automática de resultados
 // @author       You
 // @match        *://*.tecconcursos.com.br/*
 // @grant        GM_xmlhttpRequest
-// @connect      localhost
+// @connect      acssjr.pythonanywhere.com
 // ==/UserScript==
 
 (function() {
@@ -15,8 +15,8 @@
     console.log('TEC Concursos Counter v0.9.6 iniciado');
     
     // Configurações da API
-    const API_URL = 'http://localhost:5000/api/increment';
-    const UNDO_API_URL = 'http://localhost:5000/api/undo';
+    const API_URL = 'https://acssjr.pythonanywhere.com/api/increment';
+    const UNDO_API_URL = 'https://acssjr.pythonanywhere.com/api/undo';
     
     // Chaves para armazenamento local
     const STORAGE_KEY = 'tec_concursos_questoes_processadas';
