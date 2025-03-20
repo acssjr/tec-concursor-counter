@@ -626,33 +626,6 @@
                     console.log('Dificuldade encontrada:', dificuldade);
                 }
             }
-            
-            // Se não conseguir encontrar, tentar abrir a aba de desempenho com o atalho "h"
-            if (dificuldade === 'não disponível') {
-                // Simular o pressionamento da tecla "h" para abrir a aba de desempenho
-                const abaDesempenho = Array.from(document.querySelectorAll('a, button'))
-                    .find(el => el.textContent && el.textContent.includes('Desempenho'));
-                
-                if (abaDesempenho) {
-                    abaDesempenho.click();
-                    
-                    // Esperar um pouco para a aba carregar
-                    setTimeout(() => {
-                        // Buscar novamente após a aba ser aberta
-                        const legendaTitulo = Array.from(document.querySelectorAll('.legenda-titulo'))
-                            .find(el => el.textContent && el.textContent.includes('Dificuldade:'));
-                        
-                        if (legendaTitulo) {
-                            const strongElement = legendaTitulo.querySelector('strong');
-                            
-                            if (strongElement && strongElement.textContent) {
-                                dificuldade = strongElement.textContent.trim();
-                                console.log('Dificuldade encontrada após clicar em Desempenho:', dificuldade);
-                            }
-                        }
-                    }, 300);
-                }
-            }
         } catch (error) {
             console.error('Erro ao buscar dificuldade:', error);
         }
