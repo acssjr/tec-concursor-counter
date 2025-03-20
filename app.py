@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 
@@ -57,6 +57,11 @@ def save_data(sessions_list):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
+# Função para obter o datetime atual no horário de Brasília (GMT-3)
+def datetime_brasil():
+    # Retorna o datetime atual com o ajuste para GMT-3 (Brasília)
+    return datetime.now() - timedelta(hours=3)
+
 @app.route('/')
 def index():
     # Carregar sessões do arquivo
@@ -101,7 +106,7 @@ def index():
             stats_por_materia[materia]['taxa_acerto'] = 0
     
     # Obter o ano atual para o footer
-    ano_atual = datetime.now().year
+    ano_atual = datetime_brasil().year
     
     return render_template('index.html', 
                           sessions=sessions_processed, 
@@ -118,7 +123,7 @@ def add_session():
     
     # Criar nova sessão
     session = {
-        'date': datetime.now().strftime('%d/%m/%Y %H:%M'),
+        'date': datetime_brasil().strftime('%d/%m/%Y %H:%M'),
         'materia': materia,
         'caderno': caderno,
         'acertos': acertos,
@@ -162,7 +167,7 @@ def delete_session(index):
     return redirect(url_for('index'))
 
 # Nova rota para API que o userscript usará
-@app.route('/api/increment', methods=['POST'])
+@app.route('/api/increment', methods=['POST', 'OPTIONS'])
 def increment_counter():
     global contador_acertos, contador_erros, historico_operacoes
     
@@ -178,7 +183,7 @@ def increment_counter():
         return jsonify({'error': 'Informações da questão não fornecidas'}), 400
     
     # Enriquecer o objeto question_info com timestamp
-    question_info['timestamp'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    question_info['timestamp'] = datetime_brasil().strftime('%d/%m/%Y %H:%M:%S')
     
     # Incrementar o contador apropriado
     if data['type'] == 'acerto':
@@ -186,7 +191,7 @@ def increment_counter():
         # Adicionar ao histórico
         historico_operacoes.append({
             'tipo': 'acerto',
-            'timestamp': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
+            'timestamp': datetime_brasil().strftime('%d/%m/%Y %H:%M:%S'),
             'questao': question_info
         })
         return jsonify({
@@ -202,7 +207,7 @@ def increment_counter():
         # Adicionar ao histórico
         historico_operacoes.append({
             'tipo': 'erro',
-            'timestamp': datetime.now().strftime('%d/%m/%Y %H:%M:%S'),
+            'timestamp': datetime_brasil().strftime('%d/%m/%Y %H:%M:%S'),
             'questao': question_info
         })
         return jsonify({
