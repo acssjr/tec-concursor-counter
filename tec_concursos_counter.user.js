@@ -1,12 +1,10 @@
 // ==UserScript==
-// @name         TEC Concursos - Contador Automático
+// @name         TEC Concursos - Contador Simples
 // @namespace    http://localhost:5000/
-// @version      0.8
-// @description  Integra com o TEC Concursos para contar automaticamente acertos e erros, com opção de desfazer, painel arrastável e prevenção de contagens duplicadas
+// @version      0.9.6
+// @description  Versão simples do contador para o TEC Concursos com detecção automática de resultados
 // @author       You
 // @match        *://*.tecconcursos.com.br/*
-// @match        https://www.tecconcursos.com.br/*
-// @match        https://tecconcursos.com.br/*
 // @grant        GM_xmlhttpRequest
 // @connect      localhost
 // ==/UserScript==
@@ -14,727 +12,816 @@
 (function() {
     'use strict';
     
-    console.log('TEC Concursos Counter v0.8 iniciado');
+    console.log('TEC Concursos Counter v0.9.6 iniciado');
     
-    // Configuração
-    const API_URL = 'https://acssjr.pythonanywhere.com/api/increment';
-    const UNDO_API_URL = 'https://acssjr.pythonanywhere.com/api/undo';
+    // Configurações da API
+    const API_URL = 'http://localhost:5000/api/increment';
+    const UNDO_API_URL = 'http://localhost:5000/api/undo';
     
-    // Mapa para armazenar questões já processadas
-    const questoesProcessadas = carregarQuestoesProcessadas();
+    // Chaves para armazenamento local
+    const STORAGE_KEY = 'tec_concursos_questoes_processadas';
+    const POSITION_KEY = 'tec_contador_posicao';
     
-    // Carregar questões processadas do localStorage
-    function carregarQuestoesProcessadas() {
-        try {
-            const dadosSalvos = localStorage.getItem('tecConcursosQuestoesProcessadas');
-            return dadosSalvos ? JSON.parse(dadosSalvos) : {};
-        } catch (error) {
-            console.error('Erro ao carregar questões processadas:', error);
-            return {};
+    // Variáveis de controle
+    let currentUrl = window.location.href;
+    let currentQuestionId = '';
+    let contentCheckInterval = null;
+    let resultadoObserver = null;
+    let resultadoProcessado = false; // Flag para controlar se o resultado já foi processado
+    let ultimaQuestaoProcessada = ''; // Armazena a última questão que foi processada automaticamente
+    const DEBUG_MODE = false; // Controla a exibição de logs detalhados
+    
+    // Função para log condicional
+    function logDebug(...args) {
+        if (DEBUG_MODE) {
+            console.log(...args);
         }
     }
     
-    // Salvar questões processadas no localStorage
-    function salvarQuestoesProcessadas() {
-        try {
-            localStorage.setItem('tecConcursosQuestoesProcessadas', JSON.stringify(questoesProcessadas));
-        } catch (error) {
-            console.error('Erro ao salvar questões processadas:', error);
-        }
+    // Inicialização
+    function iniciar() {
+        console.log('Iniciando TEC Concursos Counter');
+        
+        // Adicionar estilos CSS
+        adicionarEstilos();
+        
+        // Criar painel flutuante
+        inicializarPainel();
+        
+        // Iniciar monitoramento de mudanças na página
+        iniciarMonitoramento();
+        
+        // Iniciar detecção automática de resultados
+        iniciarDeteccaoAutomatica();
     }
     
-    // Registrar questão processada
-    function registrarQuestaoProcessada(id, tipo) {
-        questoesProcessadas[id] = tipo;
-        salvarQuestoesProcessadas();
+    // Executar após o carregamento da página
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciar);
+    } else {
+        iniciar();
     }
     
-    // Remover questão processada (para desfazer)
-    function removerQuestaoProcessada(id) {
-        if (questoesProcessadas[id]) {
-            delete questoesProcessadas[id];
-            salvarQuestoesProcessadas();
-            return true;
-        }
-        return false;
-    }
-    
-    // Auxiliar para evitar múltiplas verificações simultâneas
-    let verificandoResultado = false;
-    
-    // Inicializar quando o DOM estiver pronto
-    window.addEventListener('load', function() {
-        console.log('DOM carregado, inicializando contador...');
-        init();
-    });
-    
-    // Função principal de inicialização
-    function init() {
-        if (!window.location.hostname.includes('tecconcursos.com.br')) {
-            console.log('Não estamos no TEC Concursos, abortando inicialização.');
-            return;
-        }
-        
-        // Injetar estilos CSS
-        injetarCSS();
-        
-        // Adicionar botões manuais
-        adicionarBotoes();
-        
-        // Detectar cliques em RESOLVER
-        monitorarCliques();
-        
-        // Verificar periodicamente
-        setInterval(verificarResultado, 2000);
-        
-        // Verificar imediatamente (para caso esteja carregando uma página com resultado)
-        setTimeout(verificarResultado, 1000);
-        
-        // Mostrar notificação de inicialização
-        mostrarNotificacao('Contador de Questões ativado!');
-    }
-    
-    // Injetar estilos CSS
-    function injetarCSS() {
+    // Função para adicionar estilos CSS
+    function adicionarEstilos() {
         const estilos = `
-            .tec-contador-flutuante {
+            #tec-contador-container {
                 position: fixed;
                 bottom: 20px;
                 right: 20px;
-                background-color: #1a1a1a;
-                border-radius: 8px;
-                padding: 12px;
-                color: white;
                 z-index: 9999;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-                backdrop-filter: blur(5px);
-                width: auto;
+                width: 60px;
                 height: auto;
+            }
+            
+            #tec-contador {
+                background-color: rgba(30, 30, 30, 0.7);
+                backdrop-filter: blur(5px);
+                -webkit-backdrop-filter: blur(5px);
+                border-radius: 50px;
+                padding: 10px 0;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                width: 60px;
+            }
+            
+            .tec-contador-botao {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border: none;
+                border-radius: 50%;
+                color: white;
+                cursor: pointer;
+                font-size: 20px;
+                transition: all 0.2s ease;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+                margin: 0;
+            }
+            
+            .tec-contador-botao:hover {
+                transform: scale(1.1);
+            }
+            
+            .tec-contador-botao:active {
+                transform: scale(0.95);
+            }
+            
+            .tec-contador-botao.disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            
+            .tec-contador-botao.disabled:hover {
+                transform: none;
+            }
+            
+            #tec-botao-acerto {
+                background-color: #2ecc71;
+            }
+            
+            #tec-botao-erro {
+                background-color: #e74c3c;
+            }
+            
+            #tec-botao-desfazer {
+                background-color: #3498db;
             }
             
             .tec-notificacao {
                 position: fixed;
-                bottom: 20px;
+                bottom: 70px;
                 left: 50%;
-                transform: translateX(-50%) translateY(20px);
-                background-color: rgba(46, 204, 113, 0.9);
+                transform: translateX(-50%);
+                background-color: rgba(52, 152, 219, 0.9);
                 color: white;
-                padding: 10px 15px;
-                border-radius: 5px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-                z-index: 10000;
-                font-family: Arial, sans-serif;
+                padding: 10px 20px;
+                border-radius: 8px;
                 font-size: 14px;
-                max-width: 300px;
-                word-wrap: break-word;
-                opacity: 0;
-                transition: all 0.3s ease;
-            }
-            
-            .tec-notificacao.mostrar {
-                opacity: 1;
-                transform: translateX(-50%) translateY(0);
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+                z-index: 10000;
+                animation: fadeIn 0.3s, fadeOut 0.3s 2.7s forwards;
             }
             
             .tec-notificacao.erro {
                 background-color: rgba(231, 76, 60, 0.9);
             }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translate(-50%, 20px); }
+                to { opacity: 1; transform: translate(-50%, 0); }
+            }
+            
+            @keyframes fadeOut {
+                from { opacity: 1; transform: translate(-50%, 0); }
+                to { opacity: 0; transform: translate(-50%, -20px); }
+            }
         `;
         
-        const styleTag = document.createElement('style');
-        styleTag.textContent = estilos;
-        document.head.appendChild(styleTag);
+        // Remover estilos existentes, se houver
+        const estiloExistente = document.getElementById('tec-contador-estilos');
+        if (estiloExistente) {
+            estiloExistente.remove();
+        }
+        
+        // Adicionar novos estilos
+        const elementoEstilo = document.createElement('style');
+        elementoEstilo.id = 'tec-contador-estilos';
+        elementoEstilo.textContent = estilos;
+        document.head.appendChild(elementoEstilo);
     }
     
-    // Adicionar botões para contagem manual
-    function adicionarBotoes() {
-        console.log('Adicionando botões de contagem manual...');
+    // Funções de gerenciamento de questões processadas
+    function getQuestoesProcessadas() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error('Erro ao obter questões processadas:', error);
+            return [];
+        }
+    }
+    
+    function saveQuestoesProcessadas(questoes) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(questoes));
+        } catch (error) {
+            console.error('Erro ao salvar questões processadas:', error);
+        }
+    }
+    
+    function isQuestaoJaProcessada(id) {
+        if (!id || id === 'desconhecido') return false;
+        return getQuestoesProcessadas().includes(id);
+    }
+    
+    function addQuestaoProcessada(id) {
+        if (!id || id === 'desconhecido') return;
         
-        // Verificar se existe um painel oculto
-        const painelExistente = document.getElementById('tec-contador-flutuante');
+        const questoes = getQuestoesProcessadas();
+        if (!questoes.includes(id)) {
+            questoes.push(id);
+            saveQuestoesProcessadas(questoes);
+        }
+    }
+    
+    function removerQuestaoProcessada(id) {
+        if (!id || id === 'desconhecido') return false;
+        
+        const questoes = getQuestoesProcessadas();
+        const index = questoes.indexOf(id);
+        
+        if (index !== -1) {
+            questoes.splice(index, 1);
+            saveQuestoesProcessadas(questoes);
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Inicialização do painel
+    function inicializarPainel() {
+        // Remover painel existente, se houver
+        const painelExistente = document.getElementById('tec-contador-container');
         if (painelExistente) {
-            // Se existe mas está oculto, mostrar novamente
-            if (painelExistente.style.display === 'none') {
-                painelExistente.style.display = 'block';
+            painelExistente.remove();
+        }
+        
+        // Criar painel
+        criarPainelFlutuante();
+        
+        // Atualizar ID da questão atual
+        const infoQuestao = obterInfoQuestao();
+        currentQuestionId = infoQuestao.id;
+        logDebug('Painel inicializado para a questão:', currentQuestionId);
+    }
+    
+    // Função para monitorar mudanças na página
+    function iniciarMonitoramento() {
+        // Limpar intervalos existentes
+        if (contentCheckInterval) {
+            clearInterval(contentCheckInterval);
+        }
+        
+        // 1. Verificar mudanças na URL a cada 500ms
+        contentCheckInterval = setInterval(() => {
+            // Verificar URL
+            const newUrl = window.location.href;
+            if (newUrl !== currentUrl) {
+                logDebug('Mudança de URL detectada:', newUrl);
+                currentUrl = newUrl;
+                setTimeout(verificarMudancaDeQuestao, 300);
                 return;
             }
-            return; // Painel já existe e está visível
-        }
-        
-        // Container principal (painel flutuante)
-        const container = document.createElement('div');
-        container.id = 'tec-contador-flutuante';
-        container.style.position = 'fixed';
-        container.style.right = '20px';
-        container.style.bottom = '20px';
-        container.style.width = 'auto'; // Permitir que a largura seja determinada pelo conteúdo
-        container.style.height = 'auto'; // Permitir que a altura seja determinada pelo conteúdo
-        container.style.backgroundColor = 'rgba(44, 62, 80, 0.85)';
-        container.style.borderRadius = '8px';
-        container.style.padding = '12px';
-        container.style.color = 'white';
-        container.style.zIndex = '9999';
-        container.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.2)';
-        container.style.backdropFilter = 'blur(5px)';
-        container.style.transition = 'all 0.3s ease';
-        container.style.cursor = 'move';
-        
-        // Cabeçalho com opção de mover
-        const cabecalho = document.createElement('div');
-        cabecalho.style.display = 'flex';
-        cabecalho.style.justifyContent = 'flex-end';
-        cabecalho.style.marginBottom = '8px';
-        
-        // Botão de fechar
-        const btnFechar = document.createElement('span');
-        btnFechar.innerHTML = '&times;';
-        btnFechar.style.cursor = 'pointer';
-        btnFechar.style.fontSize = '16px';
-        btnFechar.style.fontWeight = 'bold';
-        btnFechar.onclick = () => {
-            container.style.display = 'none';
             
-            // Adicionar mini-botão para restaurar
-            criarBotaoRestaurar();
-        };
+            // Verificar conteúdo da página
+            verificarMudancaDeQuestao();
+        }, 500);
         
-        // Adicionar botão de fechar ao cabeçalho
-        cabecalho.appendChild(btnFechar);
-        
-        // Botões para incrementar manualmente
-        const botoes = document.createElement('div');
-        botoes.style.display = 'flex';
-        botoes.style.flexDirection = 'column';
-        botoes.style.gap = '8px';
-        
-        // Botão de acerto
-        const btnAcerto = document.createElement('button');
-        btnAcerto.innerHTML = '✓ ACERTO';
-        btnAcerto.style.backgroundColor = '#2ecc71';
-        btnAcerto.style.color = 'white';
-        btnAcerto.style.border = 'none';
-        btnAcerto.style.padding = '10px 15px';
-        btnAcerto.style.borderRadius = '6px';
-        btnAcerto.style.cursor = 'pointer';
-        btnAcerto.style.fontWeight = 'bold';
-        btnAcerto.style.fontSize = '13px';
-        btnAcerto.style.boxShadow = '0 3px 6px rgba(0, 0, 0, 0.1)';
-        btnAcerto.style.textAlign = 'center';
-        btnAcerto.style.transition = 'transform 0.2s, background-color 0.2s';
-        btnAcerto.onmouseover = function() {
-            this.style.backgroundColor = '#27ae60';
-            this.style.transform = 'translateY(-2px)';
-        };
-        btnAcerto.onmouseout = function() {
-            this.style.backgroundColor = '#2ecc71';
-            this.style.transform = 'translateY(0)';
-        };
-        btnAcerto.onclick = function() {
-            this.style.transform = 'scale(0.95)';
-            setTimeout(() => this.style.transform = 'scale(1)', 100);
-            incrementarContador('acerto');
-        };
-        
-        // Botão de erro
-        const btnErro = document.createElement('button');
-        btnErro.innerHTML = '✗ ERRO';
-        btnErro.style.backgroundColor = '#e74c3c';
-        btnErro.style.color = 'white';
-        btnErro.style.border = 'none';
-        btnErro.style.padding = '10px 15px';
-        btnErro.style.borderRadius = '6px';
-        btnErro.style.cursor = 'pointer';
-        btnErro.style.fontWeight = 'bold';
-        btnErro.style.fontSize = '13px';
-        btnErro.style.boxShadow = '0 3px 6px rgba(0, 0, 0, 0.1)';
-        btnErro.style.textAlign = 'center';
-        btnErro.style.transition = 'transform 0.2s, background-color 0.2s';
-        btnErro.onmouseover = function() {
-            this.style.backgroundColor = '#c0392b';
-            this.style.transform = 'translateY(-2px)';
-        };
-        btnErro.onmouseout = function() {
-            this.style.backgroundColor = '#e74c3c';
-            this.style.transform = 'translateY(0)';
-        };
-        btnErro.onclick = function() {
-            this.style.transform = 'scale(0.95)';
-            setTimeout(() => this.style.transform = 'scale(1)', 100);
-            incrementarContador('erro');
-        };
-        
-        // Botão de desfazer
-        const btnUndo = document.createElement('button');
-        btnUndo.innerHTML = '↩ DESFAZER';
-        btnUndo.style.backgroundColor = '#3498db';
-        btnUndo.style.color = 'white';
-        btnUndo.style.border = 'none';
-        btnUndo.style.padding = '10px 15px';
-        btnUndo.style.borderRadius = '6px';
-        btnUndo.style.cursor = 'pointer';
-        btnUndo.style.fontWeight = 'bold';
-        btnUndo.style.fontSize = '13px';
-        btnUndo.style.boxShadow = '0 3px 6px rgba(0, 0, 0, 0.1)';
-        btnUndo.style.textAlign = 'center';
-        btnUndo.style.transition = 'transform 0.2s, background-color 0.2s';
-        btnUndo.onmouseover = function() {
-            this.style.backgroundColor = '#2980b9';
-            this.style.transform = 'translateY(-2px)';
-        };
-        btnUndo.onmouseout = function() {
-            this.style.backgroundColor = '#3498db';
-            this.style.transform = 'translateY(0)';
-        };
-        btnUndo.onclick = function() {
-            this.style.transform = 'scale(0.95)';
-            setTimeout(() => this.style.transform = 'scale(1)', 100);
-            desfazerUltimaOperacao();
-        };
-        
-        // Adicionar botões
-        botoes.appendChild(btnAcerto);
-        botoes.appendChild(btnErro);
-        botoes.appendChild(btnUndo);
-        
-        // Montar o painel
-        container.appendChild(cabecalho);
-        container.appendChild(botoes);
-        
-        // Adicionar à página
-        document.body.appendChild(container);
-        
-        // Aplicar a função para arrastar o painel
-        aplicarDrag(container, container);
-        
-        // Efeito de animação na entrada
-        container.style.opacity = '0';
-        container.style.transform = 'translateY(20px)';
-        setTimeout(() => {
-            container.style.opacity = '1';
-            container.style.transform = 'translateY(0)';
-        }, 100);
-    }
-    
-    // Criar botão pequeno para restaurar o painel quando fechado
-    function criarBotaoRestaurar() {
-        // Verificar se o botão já existe
-        if (document.getElementById('tec-contador-restaurar')) {
-            return;
-        }
-        
-        const restaurar = document.createElement('div');
-        restaurar.id = 'tec-contador-restaurar';
-        restaurar.style.position = 'fixed';
-        restaurar.style.bottom = '20px';
-        restaurar.style.right = '20px';
-        restaurar.style.backgroundColor = '#3498db';
-        restaurar.style.color = 'white';
-        restaurar.style.width = '40px';
-        restaurar.style.height = '40px';
-        restaurar.style.borderRadius = '50%';
-        restaurar.style.display = 'flex';
-        restaurar.style.justifyContent = 'center';
-        restaurar.style.alignItems = 'center';
-        restaurar.style.cursor = 'pointer';
-        restaurar.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-        restaurar.style.zIndex = '9999';
-        restaurar.style.fontSize = '20px';
-        restaurar.innerHTML = '⇧';
-        restaurar.title = 'Restaurar contador';
-        
-        restaurar.onclick = function() {
-            // Remover o botão de restaurar
-            this.remove();
-            
-            // Mostrar o painel contador
-            adicionarBotoes();
-        };
-        
-        document.body.appendChild(restaurar);
-    }
-    
-    // Monitorar cliques no botão RESOLVER
-    function monitorarCliques() {
-        console.log('Configurando monitoramento de cliques...');
-        
-        document.addEventListener('click', function(e) {
-            // Verificar botão de RESOLVER
-            const target = e.target;
-            let button = null;
-            
-            // Verificar se clicou no botão ou em algo dentro dele
-            if (target.tagName === 'BUTTON' && target.textContent && 
-                target.textContent.includes('RESOLVER')) {
-                button = target;
-            } else {
-                button = target.closest('button');
-                if (button && (!button.textContent || !button.textContent.includes('RESOLVER'))) {
-                    button = null;
-                }
+        // 2. Monitorar cliques em botões de navegação
+        document.addEventListener('click', (e) => {
+            // Verificar se clicou em links ou botões de navegação
+            if (e.target.tagName === 'A' || 
+                e.target.closest('a') || 
+                e.target.classList.contains('btn-nav') || 
+                e.target.closest('.btn-nav')) {
+                
+                // Agendar verificação após o clique
+                setTimeout(verificarMudancaDeQuestao, 500);
             }
-            
-            if (button) {
-                console.log('Clique em botão RESOLVER detectado!');
-                setTimeout(verificarResultado, 1500);
-            }
+        });
+        
+        // 3. Monitorar mudanças no DOM que possam indicar uma nova questão
+        const observer = new MutationObserver(verificarMudancaDeQuestao);
+        observer.observe(document.body, { 
+            childList: true, 
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['class', 'id']
         });
     }
     
-    // Verificar resultado atual na página
-    function verificarResultado() {
-        if (verificandoResultado) return;
-        verificandoResultado = true;
+    // Verificar se houve mudança na questão atual
+    function verificarMudancaDeQuestao() {
+        const novaInfoQuestao = obterInfoQuestao();
         
-        try {
-            console.log('Verificando resultado na página...');
+        // Se a ID da questão mudou, reinicializar o painel
+        if (novaInfoQuestao.id && novaInfoQuestao.id !== currentQuestionId) {
+            logDebug(`Questão mudou: ${currentQuestionId} -> ${novaInfoQuestao.id}`);
+            inicializarPainel();
             
-            // ID da questão atual
-            const idQuestao = obterIdQuestao();
-            console.log(`ID da questão atual: ${idQuestao}`);
+            // Reiniciar as flags de controle
+            resultadoProcessado = false;
             
-            // Verificar se já processamos esta questão
-            if (questoesProcessadas[idQuestao]) {
-                const tipoAnterior = questoesProcessadas[idQuestao];
-                console.log(`Questão já processada como "${tipoAnterior}". Ignorando.`);
-                verificandoResultado = false;
-                return;
-            }
-            
-            // Primeiro verificar se a pergunta já foi respondida
-            // Procurar por botões que indiquem que a questão ainda não foi respondida
-            let botaoResolver = null;
-            const botoes = document.querySelectorAll('button');
-            for (let i = 0; i < botoes.length; i++) {
-                const botao = botoes[i];
-                if (botao.textContent && botao.textContent.includes('RESOLVER') && !botao.disabled) {
-                    botaoResolver = botao;
-                    break;
-                }
-            }
-            
-            // Se o botão RESOLVER ainda está ativo, o usuário não respondeu
-            if (botaoResolver && botaoResolver.offsetParent !== null) {
-                console.log('Questão ainda não foi respondida (botão RESOLVER presente).');
-                verificandoResultado = false;
-                return false;
-            }
-            
-            // Verificar se há alguma alternativa selecionada
-            const alternativaSelecionada = document.querySelector('input[type="radio"]:checked');
-            if (!alternativaSelecionada && !document.body.innerText.includes('Você acertou') && !document.body.innerText.includes('Você errou')) {
-                console.log('Nenhuma alternativa selecionada e nenhum feedback de resposta. Ignorando.');
-                verificandoResultado = false;
-                return false;
-            }
-            
-            // Texto completo da página
-            const conteudoPagina = document.body.innerText || '';
-            
-            // Verificações específicas para acerto - verificar textos exatos
-            const acertoDetectado = 
-                conteudoPagina.includes('Você acertou') || 
-                conteudoPagina.includes('Resposta correta!') ||
-                conteudoPagina.includes('Parabéns! Você acertou');
-            
-            // Verificações específicas para erro - verificar textos exatos
-            const erroDetectado = 
-                conteudoPagina.includes('Você errou') || 
-                conteudoPagina.includes('Resposta incorreta!') ||
-                conteudoPagina.includes('Que pena! Você errou');
-            
-            // Se detectou algum resultado CLARO...
-            if (acertoDetectado) {
-                console.log('ACERTO detectado com certeza!');
-                registrarQuestaoProcessada(idQuestao, 'acerto');
-                incrementarContador('acerto', idQuestao);
-                verificandoResultado = false;
-                return true;
-            }
-            
-            if (erroDetectado) {
-                console.log('ERRO detectado com certeza!');
-                registrarQuestaoProcessada(idQuestao, 'erro');
-                incrementarContador('erro', idQuestao);
-                verificandoResultado = false;
-                return true;
-            }
-            
-            // Se chegou aqui, não detectou resultado claro
-            console.log('Nenhum resultado claro detectado.');
-            verificandoResultado = false;
-            return false;
-            
-        } catch (erro) {
-            console.error('Erro ao verificar resultado:', erro);
-            verificandoResultado = false;
-            return false;
+            // Reiniciar a detecção automática para a nova questão
+            iniciarDeteccaoAutomatica();
         }
     }
     
-    // Função para obter ID único da questão atual
-    function obterIdQuestao() {
-        console.log('Tentando obter ID da questão atual...');
+    // Função para criar o painel flutuante
+    function criarPainelFlutuante() {
+        // Criar container externo
+        const container = document.createElement('div');
+        container.id = 'tec-contador-container';
         
-        // Procurar pelo ID da questão com # na interface (mais confiável)
-        try {
-            // Tentar obter o número da questão de forma mais robusta
-            // Método 1: Buscar em todo o conteúdo da página por padrões de ID
-            const pageContent = document.body.innerHTML;
-            const idRegex = /#(\d{6,})/g; // IDs com 6+ dígitos após #
-            const matches = [...pageContent.matchAll(idRegex)];
-            
-            if (matches && matches.length > 0) {
-                // Pegar o primeiro ID encontrado
-                const id = matches[0][1];
-                console.log(`ID da questão encontrado no HTML: #${id}`);
-                return id;
+        // Restaurar posição anterior
+        const posicaoSalva = localStorage.getItem(POSITION_KEY);
+        if (posicaoSalva) {
+            try {
+                const pos = JSON.parse(posicaoSalva);
+                container.style.top = pos.top;
+                container.style.right = null;
+                container.style.bottom = null;
+                container.style.left = pos.left;
+            } catch (e) {
+                console.error('Erro ao restaurar posição:', e);
             }
-            
-            // Método 2: Procurar por links e elementos que possam conter o ID
-            const elements = document.querySelectorAll('a, span, div, p');
-            for (let i = 0; i < elements.length; i++) {
-                const element = elements[i];
-                const text = element.textContent || '';
-                
-                // Verificar se o texto contém # seguido de números
-                if (text.includes('#')) {
-                    const match = text.match(/#(\d+)/);
-                    if (match && match[1]) {
-                        console.log(`ID da questão encontrado em elemento: #${match[1]}`);
-                        return match[1];
-                    }
-                }
-                
-                // Verificar atributos href para links
-                if (element.tagName === 'A' && element.getAttribute('href')) {
-                    const href = element.getAttribute('href');
-                    if (href.includes('questao/')) {
-                        const match = href.match(/questao\/(\d+)/i);
-                        if (match && match[1]) {
-                            console.log(`ID da questão encontrado em link: ${match[1]}`);
-                            return match[1];
-                        }
-                    }
-                }
-            }
-            
-            // Método 3: Verificar a URL atual
-            const urlMatch = window.location.href.match(/questao\/(\d+)/i);
-            if (urlMatch && urlMatch[1]) {
-                console.log(`ID da questão encontrado pela URL: ${urlMatch[1]}`);
-                return urlMatch[1];
-            }
-            
-        } catch (erro) {
-            console.error('Erro ao tentar obter ID da questão:', erro);
         }
-            
-        // Fallback - usar parte da URL que não inclui parâmetros dinâmicos
-        const urlBase = window.location.pathname;
-        console.log(`Nenhum ID específico encontrado, usando URL: ${urlBase}`);
-        return `url_${urlBase}`;
+        
+        // Criar painel interior
+        const painel = document.createElement('div');
+        painel.id = 'tec-contador';
+        
+        // Obter ID da questão atual
+        const infoQuestao = obterInfoQuestao();
+        const questaoId = infoQuestao.id;
+        const jaProcessada = isQuestaoJaProcessada(questaoId);
+        
+        logDebug(`Criando painel para questão ${questaoId}. Já processada: ${jaProcessada}`);
+        
+        // Botões
+        const botaoAcerto = criarBotao('tec-botao-acerto', '✓', function() {
+            processarBotao('acerto');
+        });
+        
+        const botaoErro = criarBotao('tec-botao-erro', '✗', function() {
+            processarBotao('erro');
+        });
+        
+        const botaoDesfazer = criarBotao('tec-botao-desfazer', '↩', function() {
+            desfazerUltimaOperacao();
+        });
+        
+        // Desabilitar botões se questão já processada
+        if (jaProcessada) {
+            botaoAcerto.classList.add('disabled');
+            botaoErro.classList.add('disabled');
+        } else {
+            // Garantir que os botões estejam habilitados para nova questão
+            botaoAcerto.classList.remove('disabled');
+            botaoErro.classList.remove('disabled');
+        }
+        
+        painel.appendChild(botaoAcerto);
+        painel.appendChild(botaoErro);
+        painel.appendChild(botaoDesfazer);
+        
+        // Adicionar painel ao container
+        container.appendChild(painel);
+        
+        // Adicionar container ao corpo da página
+        document.body.appendChild(container);
+        
+        // Tornar o painel arrastável
+        tornarArrastavel(container);
     }
     
-    // Incrementar contador de acertos ou erros
-    function incrementarContador(tipo, idQuestao = null) {
-        // Se não foi fornecido ID, obter o atual
-        if (!idQuestao) {
-            idQuestao = obterIdQuestao();
-        }
+    // Processar clique nos botões
+    function processarBotao(tipo) {
+        const infoQuestao = obterInfoQuestao();
+        const questaoId = infoQuestao.id;
         
-        console.log(`Incrementando contador de ${tipo} para questão ${idQuestao}`);
-        
-        // Verificar se a questão já foi processada
-        if (questoesProcessadas[idQuestao]) {
-            const tipoAnterior = questoesProcessadas[idQuestao];
-            console.log(`Questão já processada como "${tipoAnterior}". Ignorando novamente.`);
-            verificandoResultado = false;
+        // Verificar se já foi processada
+        if (isQuestaoJaProcessada(questaoId)) {
+            mostrarNotificacao(`Esta questão já foi registrada!`, true);
             return;
         }
         
-        // Marcar questão como processada imediatamente para feedback rápido
-        registrarQuestaoProcessada(idQuestao, tipo);
+        // Desabilitar botões após click para evitar cliques rápidos múltiplos
+        const botaoAcerto = document.getElementById('tec-botao-acerto');
+        const botaoErro = document.getElementById('tec-botao-erro');
         
-        // Mostrar feedback visual imediato
-        mostrarNotificacao(`${tipo === 'acerto' ? 'Acerto' : 'Erro'} contabilizado!`, false);
+        if (botaoAcerto) botaoAcerto.classList.add('disabled');
+        if (botaoErro) botaoErro.classList.add('disabled');
         
-        // Enviar para o servidor local
-        console.log(`Enviando requisição para ${API_URL}`);
+        // Incrementar contador
+        incrementarContador(tipo);
+    }
+    
+    // Função auxiliar para criar botões
+    function criarBotao(id, texto, callback) {
+        const botao = document.createElement('button');
+        botao.id = id;
+        botao.className = 'tec-contador-botao';
+        botao.textContent = texto;
+        botao.addEventListener('click', callback);
+        return botao;
+    }
+    
+    // Função para tornar o painel arrastável
+    function tornarArrastavel(elemento) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        const painel = elemento.querySelector('#tec-contador');
+        
+        if (!painel) return;
+        
+        painel.style.cursor = 'move';
+        painel.addEventListener('mousedown', iniciarArrasto);
+        
+        function iniciarArrasto(e) {
+            e.preventDefault();
+            
+            // Verificar se clicou em um botão (não iniciar arrasto)
+            if (e.target.classList.contains('tec-contador-botao')) {
+                return;
+            }
+            
+            // Obter posição do cursor no início
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            
+            // Adicionar eventos ao documento
+            document.addEventListener('mouseup', pararArrasto);
+            document.addEventListener('mousemove', arrastar);
+        }
+        
+        function arrastar(e) {
+            e.preventDefault();
+            
+            // Calcular nova posição
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            
+            // Definir nova posição do elemento
+            const novoTop = elemento.offsetTop - pos2;
+            const novoLeft = elemento.offsetLeft - pos1;
+            
+            // Garantir que o elemento não saia da tela
+            const maxTop = window.innerHeight - elemento.offsetHeight;
+            const maxLeft = window.innerWidth - elemento.offsetWidth;
+            
+            elemento.style.top = Math.min(Math.max(0, novoTop), maxTop) + "px";
+            elemento.style.left = Math.min(Math.max(0, novoLeft), maxLeft) + "px";
+            
+            // Salvar posição
+            salvarPosicao(elemento);
+        }
+        
+        function pararArrasto() {
+            // Parar de mover quando o mouse for solto
+            document.removeEventListener('mouseup', pararArrasto);
+            document.removeEventListener('mousemove', arrastar);
+            
+            // Salvar posição final
+            salvarPosicao(elemento);
+        }
+        
+        // Salvar posição do painel para restaurá-la depois
+        function salvarPosicao(el) {
+            if (!el.style.top || !el.style.left) return;
+            
+            const posicao = {
+                top: el.style.top,
+                left: el.style.left
+            };
+            
+            localStorage.setItem(POSITION_KEY, JSON.stringify(posicao));
+        }
+    }
+    
+    // Função para incrementar o contador (acerto/erro)
+    function incrementarContador(tipo) {
+        logDebug(`Incrementando contador: ${tipo}`);
+        
+        // Obter informações da questão
+        const infoQuestao = obterInfoQuestao();
+        
+        // Preparar dados para enviar
+        const dados = {
+            type: tipo,
+            question_info: infoQuestao
+        };
+        
+        // Enviar para a API
         GM_xmlhttpRequest({
             method: 'POST',
             url: API_URL,
             headers: {
                 'Content-Type': 'application/json'
             },
-            data: JSON.stringify({ 
-                type: tipo,
-                question_info: {
-                    id: idQuestao,
-                    url: window.location.href
-                }
-            }),
+            data: JSON.stringify(dados),
             onload: function(response) {
-                console.log(`Resposta do servidor: ${response.status} ${response.statusText}`);
-                console.log(`Dados: ${response.responseText}`);
+                if (response.status >= 200 && response.status < 300) {
+                    mostrarNotificacao(`${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrado!`);
+                    addQuestaoProcessada(infoQuestao.id);
+                } else {
+                    mostrarNotificacao(`Erro ao registrar ${tipo}`, true);
+                    // Reabilitar botões em caso de erro
+                    const botaoAcerto = document.getElementById('tec-botao-acerto');
+                    const botaoErro = document.getElementById('tec-botao-erro');
+                    
+                    if (botaoAcerto) botaoAcerto.classList.remove('disabled');
+                    if (botaoErro) botaoErro.classList.remove('disabled');
+                }
             },
             onerror: function(error) {
-                console.error('Erro ao comunicar com servidor:', error);
-                mostrarNotificacao('Erro ao comunicar com o servidor local', true);
+                mostrarNotificacao('Erro ao comunicar com o servidor', true);
+                console.error('Erro na requisição:', error);
                 
-                // Remover da lista de processadas se houver erro, permitindo nova tentativa
-                removerQuestaoProcessada(idQuestao);
+                // Reabilitar botões em caso de erro
+                const botaoAcerto = document.getElementById('tec-botao-acerto');
+                const botaoErro = document.getElementById('tec-botao-erro');
+                
+                if (botaoAcerto) botaoAcerto.classList.remove('disabled');
+                if (botaoErro) botaoErro.classList.remove('disabled');
             }
         });
     }
     
-    // Desfazer última operação
+    // Função para desfazer a última operação
     function desfazerUltimaOperacao() {
-        console.log('Desfazendo última operação...');
+        logDebug('Desfazendo última operação');
         
-        // Enviar para o servidor local
-        console.log(`Enviando requisição para ${UNDO_API_URL}`);
+        // Obter informações da questão atual
+        const infoQuestao = obterInfoQuestao();
+        
         GM_xmlhttpRequest({
             method: 'POST',
             url: UNDO_API_URL,
             headers: {
                 'Content-Type': 'application/json'
             },
+            data: JSON.stringify({ action: 'undo' }),
             onload: function(response) {
-                console.log(`Resposta do servidor: ${response.status} ${response.statusText}`);
-                
-                try {
-                    const dados = JSON.parse(response.responseText);
+                if (response.status >= 200 && response.status < 300) {
+                    const removido = removerQuestaoProcessada(infoQuestao.id);
                     
-                    if (dados.sucesso) {
-                        // A operação foi desfeita com sucesso
-                        console.log(`Operação desfeita: ${dados.operacao.tipo} da questão ${dados.operacao.questao.id}`);
+                    if (removido) {
+                        mostrarNotificacao('Operação desfeita para esta questão!');
                         
-                        // Remover da lista de questões processadas
-                        if (dados.operacao && dados.operacao.questao && dados.operacao.questao.id) {
-                            removerQuestaoProcessada(dados.operacao.questao.id);
-                        }
+                        // Reabilitar botões após desfazer
+                        const botaoAcerto = document.getElementById('tec-botao-acerto');
+                        const botaoErro = document.getElementById('tec-botao-erro');
                         
-                        mostrarNotificacao('Última operação desfeita!');
+                        if (botaoAcerto) botaoAcerto.classList.remove('disabled');
+                        if (botaoErro) botaoErro.classList.remove('disabled');
                     } else {
-                        // Não havia operações para desfazer
-                        console.log('Não há operações para desfazer');
-                        mostrarNotificacao('Não há operações para desfazer', true);
+                        mostrarNotificacao('Operação desfeita!');
                     }
-                } catch (error) {
-                    console.error('Erro ao processar resposta do servidor:', error);
-                    mostrarNotificacao('Erro ao processar resposta do servidor', true);
+                } else {
+                    mostrarNotificacao('Não há operações para desfazer', true);
                 }
             },
             onerror: function(error) {
-                console.error('Erro ao comunicar com servidor:', error);
-                mostrarNotificacao('Erro ao comunicar com o servidor local', true);
+                mostrarNotificacao('Erro ao comunicar com o servidor', true);
+                console.error('Erro na requisição:', error);
             }
         });
     }
     
-    // Mostrar notificação na tela
-    function mostrarNotificacao(mensagem, isError = false) {
+    // Função para obter informações da questão atual
+    function obterInfoQuestao() {
+        // Tentar obter o ID da questão da URL ou de elementos da página
+        let id = '';
+        
+        // Método 1: Tentar encontrar elemento com classe 'q-info'
+        const qInfoElement = document.querySelector('.q-info');
+        if (qInfoElement && qInfoElement.textContent) {
+            const match = qInfoElement.textContent.match(/#(\d+)/);
+            if (match && match[1]) {
+                id = match[1];
+                logDebug(`ID encontrado no elemento .q-info: ${id}`);
+                return { id, url: window.location.href };
+            }
+        }
+        
+        // Método 2: Verificar URL
+        if (!id) {
+            const urlMatch = window.location.href.match(/\/questao\/(\d+)/);
+            if (urlMatch && urlMatch[1]) {
+                id = urlMatch[1];
+                logDebug(`ID encontrado na URL: ${id}`);
+                return { id, url: window.location.href };
+            }
+        }
+        
+        // Método 3: Verificar elementos na página com o formato "#NNNNNN"
+        if (!id) {
+            const textosQuestao = [];
+            document.querySelectorAll('h1, h2, h3, p, span, div').forEach(elem => {
+                if (elem.textContent) textosQuestao.push(elem.textContent);
+            });
+            
+            for (const texto of textosQuestao) {
+                const match = texto.match(/#(\d+)/);
+                if (match && match[1]) {
+                    id = match[1];
+                    logDebug(`ID encontrado no texto da página: ${id}`);
+                    break;
+                }
+            }
+        }
+        
+        return {
+            id: id || 'desconhecido',
+            url: window.location.href
+        };
+    }
+    
+    // Função para iniciar a detecção automática de resultados
+    function iniciarDeteccaoAutomatica() {
+        logDebug('Iniciando detecção automática de resultados');
+        
+        // Reiniciar as flags de controle
+        resultadoProcessado = false;
+        
+        // Desconectar observer existente, se houver
+        if (resultadoObserver) {
+            resultadoObserver.disconnect();
+        }
+        
+        // Criar um novo MutationObserver para detectar resultados
+        resultadoObserver = new MutationObserver(() => {
+            // Só verificar se ainda não processou o resultado para esta questão
+            if (!resultadoProcessado) {
+                verificarResultado();
+            }
+        });
+        
+        // Observar todo o corpo da página para detectar quando o resultado aparece
+        resultadoObserver.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            characterDataOldValue: true
+        });
+        
+        // Verificar imediatamente se já existe resultado visível
+        verificarResultado();
+    }
+    
+    // Função para verificar o resultado da questão após responder
+    function verificarResultado() {
+        const infoQuestao = obterInfoQuestao();
+        
+        // Se a questão já foi processada através do sistema manual, não fazer nada
+        if (isQuestaoJaProcessada(infoQuestao.id)) {
+            resultadoProcessado = true; // Marcar como processado para evitar verificações adicionais
+            return;
+        }
+        
+        // Se esta questão já foi processada automaticamente, não fazer nada
+        if (resultadoProcessado && ultimaQuestaoProcessada === infoQuestao.id) {
+            return;
+        }
+        
+        // Método nativo para buscar elementos com texto específico
+        let acertou = false;
+        let errou = false;
+        
+        // Procurar apenas mensagens de feedback específicas
+        // Isso evita falsos positivos ao detectar partes aleatórias da página
+        let elementoAcerto = null;
+        let elementoErro = null;
+        
+        // Verificar se existe um elemento com texto exato de "Você acertou!" com ícone de verificação verde
+        document.querySelectorAll('div, span, p').forEach(elem => {
+            if (elem.textContent && elem.textContent.trim() === 'Você acertou!' || 
+                elem.textContent && elem.textContent.includes('Você acertou! Muito bem!')) {
+                elementoAcerto = elem;
+                logDebug('Elemento de acerto encontrado:', elem);
+            }
+            else if (elem.textContent && elem.textContent.trim() === 'Você errou!' || 
+                     elem.textContent && elem.textContent.includes('Você errou! Gabarito:')) {
+                elementoErro = elem;
+                logDebug('Elemento de erro encontrado:', elem);
+            }
+        });
+        
+        // Verificar resposta com base nos elementos específicos encontrados
+        if (elementoAcerto) {
+            // Verificar se está próximo a um ícone de verificação verde
+            const iconeProximo = elementoAcerto.querySelector('svg, i, img') || 
+                                elementoAcerto.parentElement.querySelector('svg, i, img');
+            
+            if (iconeProximo || elementoAcerto.previousElementSibling || elementoAcerto.nextElementSibling) {
+                acertou = true;
+                logDebug('Acerto confirmado com ícone próximo');
+            }
+        }
+        
+        if (elementoErro) {
+            // Verificar se está próximo a um ícone X vermelho
+            const iconeProximo = elementoErro.querySelector('svg, i, img') || 
+                               elementoErro.parentElement.querySelector('svg, i, img');
+            
+            if (iconeProximo || elementoErro.previousElementSibling || elementoErro.nextElementSibling) {
+                errou = true;
+                logDebug('Erro confirmado com ícone próximo');
+            }
+        }
+        
+        // Se não encontrou pelos textos exatos, buscar ícones específicos
+        if (!acertou && !errou) {
+            // Procurar ícones específicos que só aparecem após responder
+            const checkIcone = document.querySelector('.check-icon, .success-icon, .acerto-icon');
+            const erroIcone = document.querySelector('.error-icon, .times-icon, .erro-icon');
+            
+            if (checkIcone) {
+                // Verificar se o ícone está visível
+                const estilo = window.getComputedStyle(checkIcone);
+                if (estilo.display !== 'none' && estilo.visibility !== 'hidden') {
+                    acertou = true;
+                    logDebug('Acerto detectado pelo ícone específico');
+                }
+            }
+            
+            if (erroIcone) {
+                // Verificar se o ícone está visível
+                const estilo = window.getComputedStyle(erroIcone);
+                if (estilo.display !== 'none' && estilo.visibility !== 'hidden') {
+                    errou = true;
+                    logDebug('Erro detectado pelo ícone específico');
+                }
+            }
+        }
+        
+        // Se ainda não encontrou, verificar padrões específicos do TEC Concursos
+        if (!acertou && !errou) {
+            // Verificar no padrão exato do TEC Concursos
+            // Verifica a existência de elementos ou combinações que só aparecem após responder
+            
+            // TEC Concursos usa SVG com cores específicas
+            const elementosVerdes = Array.from(document.querySelectorAll('svg[fill="green"], div.text-success, .success'));
+            const elementosVermelhos = Array.from(document.querySelectorAll('svg[fill="red"], div.text-danger, .danger'));
+            
+            // Verificar se algum desses elementos tem texto de acerto/erro próximo
+            for (const elem of elementosVerdes) {
+                if (elem.parentNode && elem.parentNode.textContent.includes('acertou')) {
+                    acertou = true;
+                    logDebug('Acerto confirmado por padrão TEC Concursos (verde)');
+                    break;
+                }
+            }
+            
+            for (const elem of elementosVermelhos) {
+                if (elem.parentNode && elem.parentNode.textContent.includes('errou')) {
+                    errou = true;
+                    logDebug('Erro confirmado por padrão TEC Concursos (vermelho)');
+                    break;
+                }
+            }
+        }
+        
+        // Por último, verificar elementos que aparecem APENAS no formulário de resposta
+        // Essa verificação não é feita nas áreas de navegação/cabeçalho/rodapé
+        if (!acertou && !errou) {
+            // Focar apenas no conteúdo principal, ignorando menus e navegação
+            const conteudoPrincipal = document.querySelector('.question-content, .question-body, .q-content, main');
+            
+            if (conteudoPrincipal) {
+                // Buscar apenas no conteúdo principal
+                if (conteudoPrincipal.textContent.includes('Você acertou!')) {
+                    acertou = true;
+                    logDebug('Acerto confirmado no conteúdo principal');
+                } else if (conteudoPrincipal.textContent.includes('Você errou!')) {
+                    errou = true;
+                    logDebug('Erro confirmado no conteúdo principal');
+                }
+            }
+        }
+        
+        // Se encontrou resultado, registrar automaticamente
+        if (acertou || errou) {
+            console.log(`Resultado detectado automaticamente: ${acertou ? 'ACERTO' : 'ERRO'}`);
+            
+            // Registrar resultado apenas se a questão tiver um ID válido
+            if (infoQuestao.id && infoQuestao.id !== 'desconhecido') {
+                // Marcar esta questão como processada para evitar processamento duplicado
+                resultadoProcessado = true;
+                ultimaQuestaoProcessada = infoQuestao.id;
+                
+                setTimeout(() => {
+                    incrementarContador(acertou ? 'acerto' : 'erro');
+                    mostrarNotificacao(`Resultado registrado automaticamente: ${acertou ? 'ACERTO ✓' : 'ERRO ✗'}`);
+                    
+                    // Desconectar o observer após processar o resultado
+                    // para evitar múltiplas detecções na mesma questão
+                    if (resultadoObserver) {
+                        resultadoObserver.disconnect();
+                    }
+                }, 500);
+            }
+        }
+    }
+    
+    // Função para mostrar notificações
+    function mostrarNotificacao(mensagem, isErro = false) {
+        // Remover notificações existentes
+        const notificacoesAnteriores = document.querySelectorAll('.tec-notificacao');
+        notificacoesAnteriores.forEach(notif => notif.remove());
+        
+        // Criar nova notificação
         const notificacao = document.createElement('div');
-        notificacao.className = 'tec-notificacao' + (isError ? ' erro' : '');
+        notificacao.className = isErro ? 'tec-notificacao erro' : 'tec-notificacao';
         notificacao.textContent = mensagem;
+        
+        // Adicionar à página
         document.body.appendChild(notificacao);
         
-        // Animar entrada
+        // Remover após 3 segundos
         setTimeout(() => {
-            notificacao.classList.add('mostrar');
-        }, 10);
-        
-        // Remover após alguns segundos
-        setTimeout(() => {
-            notificacao.classList.remove('mostrar');
-            setTimeout(() => {
+            if (notificacao.parentNode) {
                 notificacao.remove();
-            }, 300);
-        }, isError ? 5000 : 3000);
-    }
-    
-    // Aplicar a função para arrastar o painel
-    function aplicarDrag(container, elemento) {
-        let isDragging = false;
-        let offsetX, offsetY;
-        
-        // Adicionar eventos para arrastar
-        elemento.addEventListener('mousedown', function(e) {
-            // Ignorar se clicou em um botão
-            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'SPAN') {
-                return;
             }
-            
-            isDragging = true;
-            offsetX = e.clientX - container.getBoundingClientRect().left;
-            offsetY = e.clientY - container.getBoundingClientRect().top;
-            
-            // Desativar transições enquanto arrasta
-            container.style.transition = 'none';
-            
-            // Prevenir seleção de texto durante o arrasto
-            e.preventDefault();
-        });
-        
-        document.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            
-            const x = e.clientX - offsetX;
-            const y = e.clientY - offsetY;
-            
-            // Manter dimensões originais e mudar apenas a posição
-            container.style.right = 'auto';
-            container.style.bottom = 'auto';
-            container.style.left = x + 'px';
-            container.style.top = y + 'px';
-            
-            // Prevenir seleção de texto durante o arrasto
-            e.preventDefault();
-        });
-        
-        document.addEventListener('mouseup', function() {
-            if (!isDragging) return;
-            
-            isDragging = false;
-            
-            // Restaurar transição após terminar de arrastar
-            container.style.transition = 'all 0.3s ease';
-        });
-    }
-    
-    // Carregar contadores da API
-    function carregarContadores() {
-        console.log('Carregando contadores da API...');
-        
-        // Enviar para o servidor local
-        const statusUrl = 'https://acssjr.pythonanywhere.com/api/status';
-        console.log(`Enviando requisição para ${statusUrl}`);
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: statusUrl,
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            onload: function(response) {
-                try {
-                    console.log(`Resposta do servidor: ${response.status} ${response.statusText}`);
-                    
-                    // Atualizar contadores
-                    const dados = JSON.parse(response.responseText);
-                    const acertos = dados.acertos || 0;
-                    const erros = dados.erros || 0;
-                    
-                    document.getElementById('tec-contador-acertos').textContent = acertos;
-                    document.getElementById('tec-contador-erros').textContent = erros;
-                } catch (error) {
-                    console.error('Erro ao processar resposta:', error);
-                    mostrarNotificacao('Erro ao processar resposta do servidor', true);
-                }
-            },
-            onerror: function(error) {
-                console.error('Erro ao comunicar com servidor:', error);
-                mostrarNotificacao('Erro ao comunicar com o servidor local', true);
-            }
-        });
+        }, 3000);
     }
 })();
