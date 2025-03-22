@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TEC Concursos - Contador Simples
 // @namespace    http://acssjr.pythonanywhere.com/
-// @version      0.9.8
+// @version      0.9.13
 // @description  Versão simples do contador para o TEC Concursos com detecção automática de resultados
 // @author       You
 // @match        *://*.tecconcursos.com.br/*
@@ -12,7 +12,7 @@
 (function() {
     'use strict';
     
-    console.log('TEC Concursos Counter v0.9.8 iniciado');
+    console.log('TEC Concursos Counter v0.9.13 iniciado');
     
     // Configurações da API
     const API_URL = 'https://acssjr.pythonanywhere.com/api/increment';
@@ -53,6 +53,9 @@
         
         // Iniciar detecção automática de resultados
         iniciarDeteccaoAutomatica();
+        
+        // Verificar periodicamente por mudanças na URL
+        setInterval(verificarMudancaURL, 1000);
     }
     
     // Executar após o carregamento da página
@@ -180,7 +183,19 @@
     function getQuestoesProcessadas() {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            return saved ? JSON.parse(saved) : [];
+            // Se o formato antigo for detectado (array simples), converter para o novo formato
+            if (saved) {
+                const dadosSalvos = JSON.parse(saved);
+                // Verificar se está no formato antigo (array de strings)
+                if (Array.isArray(dadosSalvos) && dadosSalvos.length > 0 && typeof dadosSalvos[0] === 'string') {
+                    // Converter para novo formato
+                    const novoFormato = dadosSalvos.map(id => ({ questionId: id, notebookId: 'formato_antigo' }));
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(novoFormato));
+                    return novoFormato;
+                }
+                return dadosSalvos;
+            }
+            return [];
         } catch (error) {
             console.error('Erro ao obter questões processadas:', error);
             return [];
@@ -195,26 +210,27 @@
         }
     }
     
-    function isQuestaoJaProcessada(id) {
+    function isQuestaoJaProcessada(id, notebookId) {
         if (!id || id === 'desconhecido') return false;
-        return getQuestoesProcessadas().includes(id);
+        const questoes = getQuestoesProcessadas();
+        return questoes.some(q => q.questionId === id && q.notebookId === notebookId);
     }
     
-    function addQuestaoProcessada(id) {
+    function addQuestaoProcessada(id, notebookId) {
         if (!id || id === 'desconhecido') return;
         
         const questoes = getQuestoesProcessadas();
-        if (!questoes.includes(id)) {
-            questoes.push(id);
+        if (!isQuestaoJaProcessada(id, notebookId)) {
+            questoes.push({ questionId: id, notebookId: notebookId });
             saveQuestoesProcessadas(questoes);
         }
     }
     
-    function removerQuestaoProcessada(id) {
+    function removerQuestaoProcessada(id, notebookId) {
         if (!id || id === 'desconhecido') return false;
         
         const questoes = getQuestoesProcessadas();
-        const index = questoes.indexOf(id);
+        const index = questoes.findIndex(q => q.questionId === id && q.notebookId === notebookId);
         
         if (index !== -1) {
             questoes.splice(index, 1);
@@ -328,12 +344,13 @@
         const painel = document.createElement('div');
         painel.id = 'tec-contador';
         
-        // Obter ID da questão atual
+        // Obter ID da questão atual e do caderno
         const infoQuestao = obterInfoQuestao();
         const questaoId = infoQuestao.id;
-        const jaProcessada = isQuestaoJaProcessada(questaoId);
+        const cadernoId = extrairIdCaderno(infoQuestao.url);
+        const jaProcessada = isQuestaoJaProcessada(questaoId, cadernoId);
         
-        logDebug(`Criando painel para questão ${questaoId}. Já processada: ${jaProcessada}`);
+        logDebug(`Criando painel para questão ${questaoId} no caderno ${cadernoId}. Já processada: ${jaProcessada}`);
         
         // Botões
         const botaoAcerto = criarBotao('tec-botao-acerto', '✓', function() {
@@ -376,10 +393,11 @@
     function processarBotao(tipo) {
         const infoQuestao = obterInfoQuestao();
         const questaoId = infoQuestao.id;
+        const cadernoId = extrairIdCaderno(infoQuestao.url);
         
-        // Verificar se já foi processada
-        if (isQuestaoJaProcessada(questaoId)) {
-            mostrarNotificacao(`Esta questão já foi registrada!`, true);
+        // Verificar se já foi processada no caderno atual
+        if (isQuestaoJaProcessada(questaoId, cadernoId)) {
+            mostrarNotificacao(`Esta questão já foi registrada neste caderno!`, true);
             return;
         }
         
@@ -478,11 +496,12 @@
     }
     
     // Função para incrementar o contador (acerto/erro)
-    function incrementarContador(tipo) {
+    function incrementarContador(tipo, silencioso = false) {
         logDebug(`Incrementando contador: ${tipo}`);
         
         // Obter informações da questão
         const infoQuestao = obterInfoQuestao();
+        const cadernoId = extrairIdCaderno(infoQuestao.url);
         
         // Preparar dados para enviar
         const dados = {
@@ -500,8 +519,10 @@
             data: JSON.stringify(dados),
             onload: function(response) {
                 if (response.status >= 200 && response.status < 300) {
-                    mostrarNotificacao(`${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrado!`);
-                    addQuestaoProcessada(infoQuestao.id);
+                    if (!silencioso) {
+                        mostrarNotificacao(`${tipo.charAt(0).toUpperCase() + tipo.slice(1)} registrado!`);
+                    }
+                    addQuestaoProcessada(infoQuestao.id, cadernoId);
                 } else {
                     mostrarNotificacao(`Erro ao registrar ${tipo}`, true);
                     // Reabilitar botões em caso de erro
@@ -532,6 +553,7 @@
         
         // Obter informações da questão atual
         const infoQuestao = obterInfoQuestao();
+        const cadernoId = extrairIdCaderno(infoQuestao.url);
         
         GM_xmlhttpRequest({
             method: 'POST',
@@ -542,7 +564,7 @@
             data: JSON.stringify({ action: 'undo' }),
             onload: function(response) {
                 if (response.status >= 200 && response.status < 300) {
-                    const removido = removerQuestaoProcessada(infoQuestao.id);
+                    const removido = removerQuestaoProcessada(infoQuestao.id, cadernoId);
                     
                     if (removido) {
                         mostrarNotificacao('Operação desfeita para esta questão!');
@@ -610,31 +632,28 @@
             }
         }
         
-        // Tentar obter a dificuldade da questão
-        let dificuldade = 'não disponível';
-        try {
-            // Buscar específicamente o elemento com a classe "legenda-titulo" que contém "Dificuldade:"
-            const legendaTitulo = Array.from(document.querySelectorAll('.legenda-titulo'))
-                .find(el => el.textContent && el.textContent.includes('Dificuldade:'));
-            
-            if (legendaTitulo) {
-                // Pegar o elemento <strong> que é filho deste elemento (conforme mostrado na imagem)
-                const strongElement = legendaTitulo.querySelector('strong');
-                
-                if (strongElement && strongElement.textContent) {
-                    dificuldade = strongElement.textContent.trim();
-                    console.log('Dificuldade encontrada:', dificuldade);
-                }
-            }
-        } catch (error) {
-            console.error('Erro ao buscar dificuldade:', error);
-        }
-        
         return {
             id: id || 'desconhecido',
-            dificuldade: dificuldade,
             url: window.location.href
         };
+    }
+    
+    // Função para extrair o ID do caderno a partir da URL
+    function extrairIdCaderno(url) {
+        // Verificar se é URL de caderno
+        const matchCaderno = url.match(/\/cadernos\/(\d+)/);
+        if (matchCaderno && matchCaderno[1]) {
+            return matchCaderno[1];
+        }
+        
+        // Verificar se é URL de simulado
+        const matchSimulado = url.match(/\/simulados\/(\d+)/);
+        if (matchSimulado && matchSimulado[1]) {
+            return matchSimulado[1];
+        }
+        
+        // Se não encontrou padrão específico, usar a URL completa como identificador
+        return url;
     }
     
     // Função para iniciar a detecção automática de resultados
@@ -672,9 +691,10 @@
     // Função para verificar o resultado da questão após responder
     function verificarResultado() {
         const infoQuestao = obterInfoQuestao();
+        const cadernoId = extrairIdCaderno(infoQuestao.url);
         
         // Se a questão já foi processada através do sistema manual, não fazer nada
-        if (isQuestaoJaProcessada(infoQuestao.id)) {
+        if (isQuestaoJaProcessada(infoQuestao.id, cadernoId)) {
             resultadoProcessado = true; // Marcar como processado para evitar verificações adicionais
             return;
         }
@@ -811,8 +831,11 @@
                 ultimaQuestaoProcessada = infoQuestao.id;
                 
                 setTimeout(() => {
-                    incrementarContador(acertou ? 'acerto' : 'erro');
+                    incrementarContador(acertou ? 'acerto' : 'erro', true);
                     mostrarNotificacao(`Resultado registrado automaticamente: ${acertou ? 'ACERTO ✓' : 'ERRO ✗'}`);
+                    
+                    // Registrar que esta questão foi processada automaticamente
+                    addQuestaoProcessada(infoQuestao.id, cadernoId);
                     
                     // Desconectar o observer após processar o resultado
                     // para evitar múltiplas detecções na mesma questão
